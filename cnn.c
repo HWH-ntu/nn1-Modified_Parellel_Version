@@ -273,30 +273,35 @@ static void Layer_feedBack_full(Layer* self)
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
 
+    const int out_size = self->nnodes;
+    const int in_size = lprev->nnodes;
+
     /* Clear errors. */
     for (int j = 0; j < lprev->nnodes; j++) {
-        lprev->errors[j] = 0;
+        lprev->errors[j] = 0.0;
     }
 
-    int k = 0;
-    for (int i = 0; i < self->nnodes; i++) {
+    for (int i = 0; i < out_size; i++) {
         /* Computer the weight/bias updates. */
         double dnet = self->errors[i] * self->gradients[i];
-        for (int j = 0; j < lprev->nnodes; j++) {
+        const int w_base = i * in_size;
+
+        for (int j = 0; j < in_size; j++) {
+            int w_idx = w_base + j;
+            double wij = self->weights[w_idx];
             /* Propagate the errors to the previous layer. */
-            lprev->errors[j] += self->weights[k] * dnet;
-            self->u_weights[k] += dnet * lprev->outputs[j];
-            k++;
+            lprev->errors[j] += wij * dnet;
+            self->u_weights[w_idx] += dnet * lprev->outputs[j];
         }
         self->u_biases[i] += dnet;
     }
 
 #if DEBUG_LAYER
     fprintf(stderr, "Layer_feedBack_full(Layer%d):\n", self->lid);
-    for (int i = 0; i < self->nnodes; i++) {
+    for (int i = 0; i < out_size; i++) {
         double dnet = self->errors[i] * self->gradients[i];
         fprintf(stderr, "  dnet = %.4f, dw = [", dnet);
-        for (int j = 0; j < lprev->nnodes; j++) {
+        for (int j = 0; j < in_size; j++) {
             double dw = dnet * lprev->outputs[j];
             fprintf(stderr, " %.4f", dw);
         }
