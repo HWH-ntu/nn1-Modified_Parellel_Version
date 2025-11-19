@@ -209,38 +209,43 @@ static void Layer_feedForw_full(Layer* self)
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
 
-    int k = 0;
-    for (int i = 0; i < self->nnodes; i++) {
+    const int out_size = self->nnodes;//輸出node個數
+    const int in_size = lprev->nnodes;//輸入node個數
+
+    for (int i = 0; i < out_size; i++) {
         /* Compute Y = (W * X + B) without activation function. */
-        double x = self->biases[i];
-        for (int j = 0; j < lprev->nnodes; j++) {
-            x += (lprev->outputs[j] * self->weights[k++]);
+        double sum = self->biases[i];
+        const int w_base = i * in_size;//把原本攤平的m*n矩陣弄回去
+        for (int j = 0; j < in_size; j++) {
+            sum += (lprev->outputs[j] * self->weights[w_base + j]);
         }
-        self->outputs[i] = x;
+        self->outputs[i] = sum;
     }
 
     if (self->lnext == NULL) {
         /* Last layer - use Softmax. */
-        double m = -1;
-        for (int i = 0; i < self->nnodes; i++) {
+        double m = -INFINITY;//如果logits比-1小，這邊設-1會使得最小值cap在-1而使模型無法收斂
+        for (int i = 0; i < out_size; i++) {
             double x = self->outputs[i];
-            if (m < x) { m = x; }
+            if (m < x){ 
+                m = x;
+            }
         }
-        double t = 0;
-        for (int i = 0; i < self->nnodes; i++) {
+        double t = 0.0;
+        for (int i = 0; i < out_size; i++) {
             double x = self->outputs[i];
             double y = exp(x-m);
             self->outputs[i] = y;
             t += y;
         }
-        for (int i = 0; i < self->nnodes; i++) {
+        for (int i = 0; i < out_size; i++) {
             self->outputs[i] /= t;
             /* This isn't right, but set the same value to all the gradients. */
             self->gradients[i] = 1;
         }
     } else {
         /* Otherwise, use Tanh. */
-        for (int i = 0; i < self->nnodes; i++) {
+        for (int i = 0; i < out_size; i++) {
             double x = self->outputs[i];
             double y = tanh(x);
             self->outputs[i] = y;
@@ -251,11 +256,11 @@ static void Layer_feedForw_full(Layer* self)
 #if DEBUG_LAYER
     fprintf(stderr, "Layer_feedForw_full(Layer%d):\n", self->lid);
     fprintf(stderr, "  outputs = [");
-    for (int i = 0; i < self->nnodes; i++) {
+    for (int i = 0; i < out_size; i++) {
         fprintf(stderr, " %.4f", self->outputs[i]);
     }
     fprintf(stderr, "]\n  gradients = [");
-    for (int i = 0; i < self->nnodes; i++) {
+    for (int i = 0; i < out_size; i++) {
         fprintf(stderr, " %.4f", self->gradients[i]);
     }
     fprintf(stderr, "]\n");
