@@ -310,6 +310,12 @@ static void Layer_feedBack_full(Layer* self)
 #endif
 }
 
+//helper to calculate accumulated i
+static inline int layer_index(const Layer* l, int z, int y, int x){
+    //將for(z) for(y) for(x) 裡面對應的i求出
+    return (z * l->height + y) * l->width + x;
+}
+
 /* Layer_feedForw_conv(self)
    Performs feed forward updates.
 */
@@ -385,23 +391,29 @@ static void Layer_feedBack_conv(Layer* self)
         lprev->errors[j] = 0;
     }
 
-    int kernsize = self->conv.kernsize;
-    int i = 0;
+    const int kernsize = self->conv.kernsize;
+    const int stride = self->conv.stride;
+    const int padding = self->conv.padding;
+
     for (int z1 = 0; z1 < self->depth; z1++) {
         /* z1: dst matrix */
         /* qbase: kernel matrix base index */
         int qbase = z1 * lprev->depth * kernsize * kernsize;
+
         for (int y1 = 0; y1 < self->height; y1++) {
-            int y0 = self->conv.stride * y1 - self->conv.padding;
+            int y0 = stride * y1 - padding;
+
             for (int x1 = 0; x1 < self->width; x1++) {
-                int x0 = self->conv.stride * x1 - self->conv.padding;
+                int x0 = stride * x1 - padding;
                 /* Compute the kernel at (x1,y1) */
                 /* (x0,y0): src pixel */
-                double dnet = self->errors[i] * self->gradients[i];
+                int out_idx = layer_index(self, z1, y1, x1);
+                double dnet = self->errors[out_idx] * self->gradients[out_idx];
                 for (int z0 = 0; z0 < lprev->depth; z0++) {
                     /* z0: src matrix */
                     /* pbase: src matrix base index */
                     int pbase = z0 * lprev->width * lprev->height;
+
                     for (int dy = 0; dy < kernsize; dy++) {
                         int y = y0+dy;
                         if (0 <= y && y < lprev->height) {
@@ -418,11 +430,9 @@ static void Layer_feedBack_conv(Layer* self)
                     }
                 }
                 self->u_biases[z1] += dnet;
-                i++;
             }
         }
     }
-    assert (i == self->nnodes);
 
 #if DEBUG_LAYER
     fprintf(stderr, "Layer_feedBack_conv(Layer%d):\n", self->lid);
