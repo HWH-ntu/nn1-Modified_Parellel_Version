@@ -325,16 +325,21 @@ static void Layer_feedForw_conv(Layer* self)
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
 
-    int kernsize = self->conv.kernsize;
+    const int kernsize = self->conv.kernsize;
+    const int stride = self->conv.stride;
+    const int padding = self->conv.padding;
+
     int i = 0;
     for (int z1 = 0; z1 < self->depth; z1++) {
         /* z1: dst matrix */
         /* qbase: kernel matrix base index */
         int qbase = z1 * lprev->depth * kernsize * kernsize;
+
         for (int y1 = 0; y1 < self->height; y1++) {
-            int y0 = self->conv.stride * y1 - self->conv.padding;
+            int y0 = stride * y1 - padding;
+
             for (int x1 = 0; x1 < self->width; x1++) {
-                int x0 = self->conv.stride * x1 - self->conv.padding;
+                int x0 = stride * x1 - padding;
                 /* Compute the kernel at (x1,y1) */
                 /* (x0,y0): src pixel */
                 double v = self->biases[z1];
@@ -342,11 +347,13 @@ static void Layer_feedForw_conv(Layer* self)
                     /* z0: src matrix */
                     /* pbase: src matrix base index */
                     int pbase = z0 * lprev->width * lprev->height;
+
                     for (int dy = 0; dy < kernsize; dy++) {
                         int y = y0+dy;
                         if (0 <= y && y < lprev->height) {
                             int p = pbase + y*lprev->width;
                             int q = qbase + dy*kernsize;
+
                             for (int dx = 0; dx < kernsize; dx++) {
                                 int x = x0+dx;
                                 if (0 <= x && x < lprev->width) {
@@ -358,13 +365,12 @@ static void Layer_feedForw_conv(Layer* self)
                 }
                 /* Apply the activation function. */
                 v = relu(v);
-                self->outputs[i] = v;
-                self->gradients[i] = relu_g(v);
-                i++;
+                int out_idx = layer_index(self, z1, y1, x1);
+                self->outputs[out_idx] = v;
+                self->gradients[out_idx] = relu_g(v);
             }
         }
     }
-    assert (i == self->nnodes);
 
 #if DEBUG_LAYER
     fprintf(stderr, "Layer_feedForw_conv(Layer%d):\n", self->lid);
