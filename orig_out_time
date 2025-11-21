@@ -1,0 +1,6 @@
+orig_out_time
+(base) MacBook-Air:PP_final User$ time ./mnist train-images-idx3-ubyte train-labels-idx1-ubyte t10k-images-idx3-ubyte t10k-labels-idx1-ubyte 2> orig_out
+
+real	11m19.881s
+user	11m9.058s
+sys	0m2.928s
