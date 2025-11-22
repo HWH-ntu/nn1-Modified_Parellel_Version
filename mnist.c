@@ -276,6 +276,8 @@ int main(int argc, char* argv[])
     IdxFile_destroy(images_test);
     IdxFile_destroy(labels_test);
 
+    Layer_print_profile();
+
     Layer_destroy(linput);
     Layer_destroy(lconv1);
     Layer_destroy(lconv2);

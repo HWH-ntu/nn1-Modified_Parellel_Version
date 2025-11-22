@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 #include "cnn.h"
 
 #define DEBUG_LAYER 0
@@ -64,6 +65,16 @@ static inline double relu_g(double y)
     return (0 < y)? 1 : 0;
 }
 
+/* ---- profiling data (for manual timing) ---- */
+static double prof_feedforw_full_time = 0.0;
+static double prof_feedforw_conv_time = 0.0;
+static double prof_feedback_full_time = 0.0;
+static double prof_feedback_conv_time = 0.0;
+
+static long prof_feedforw_full_calls = 0;
+static long prof_feedforw_conv_calls = 0;
+static long prof_feedback_full_calls = 0;
+static long prof_feedback_conv_calls = 0;
 
 /*  Layer
  */
@@ -205,6 +216,8 @@ void Layer_dump(const Layer* self, FILE* fp)
 */
 static void Layer_feedForw_full(Layer* self)
 {
+    clock_t t0 = clock();  // <-- start timing
+
     assert (self->ltype == LAYER_FULL);
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
@@ -265,10 +278,16 @@ static void Layer_feedForw_full(Layer* self)
     }
     fprintf(stderr, "]\n");
 #endif
+
+    clock_t t1 = clock();  // <-- end timing
+    prof_feedforw_full_time  += (double)(t1 - t0) / CLOCKS_PER_SEC;
+    prof_feedforw_full_calls += 1;
 }
 
 static void Layer_feedBack_full(Layer* self)
 {
+    clock_t t0 = clock();  // start timing
+
     assert (self->ltype == LAYER_FULL);
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
@@ -308,6 +327,10 @@ static void Layer_feedBack_full(Layer* self)
         fprintf(stderr, "]\n");
     }
 #endif
+
+    clock_t t1 = clock();  // end timing
+    prof_feedback_full_time  += (double)(t1 - t0) / CLOCKS_PER_SEC;
+    prof_feedback_full_calls += 1;
 }
 
 //helper to calculate accumulated i
@@ -321,6 +344,8 @@ static inline int layer_index(const Layer* l, int z, int y, int x){
 */
 static void Layer_feedForw_conv(Layer* self)
 {
+    clock_t t0 = clock();  // start timing
+
     assert (self->ltype == LAYER_CONV);
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
@@ -384,10 +409,16 @@ static void Layer_feedForw_conv(Layer* self)
     }
     fprintf(stderr, "]\n");
 #endif
+
+    clock_t t1 = clock();  // end timing
+    prof_feedforw_conv_time  += (double)(t1 - t0) / CLOCKS_PER_SEC;
+    prof_feedforw_conv_calls += 1;
 }
 
 static void Layer_feedBack_conv(Layer* self)
 {
+    clock_t t0 = clock();  // start timing
+
     assert (self->ltype == LAYER_CONV);
     assert (self->lprev != NULL);
     Layer* lprev = self->lprev;
@@ -452,6 +483,10 @@ static void Layer_feedBack_conv(Layer* self)
         fprintf(stderr, "]\n");
     }
 #endif
+
+    clock_t t1 = clock();  // end timing
+    prof_feedback_conv_time  += (double)(t1 - t0) / CLOCKS_PER_SEC;
+    prof_feedback_conv_calls += 1;
 }
 
 /* Layer_setInputs(self, values)
@@ -632,4 +667,43 @@ Layer* Layer_create_conv(
     Layer_dump(self, stderr);
 #endif
     return self;
+}
+
+void Layer_print_profile(void)
+{
+    fprintf(stderr, "\n=== CNN profile (manual timing) ===\n");
+
+    if (prof_feedforw_conv_calls > 0) {
+        fprintf(stderr,
+                "Layer_feedForw_conv : %ld calls, %.6f s total, %.9f s / call\n",
+                prof_feedforw_conv_calls,
+                prof_feedforw_conv_time,
+                prof_feedforw_conv_time / prof_feedforw_conv_calls);
+    }
+
+    if (prof_feedback_conv_calls > 0) {
+        fprintf(stderr,
+                "Layer_feedBack_conv : %ld calls, %.6f s total, %.9f s / call\n",
+                prof_feedback_conv_calls,
+                prof_feedback_conv_time,
+                prof_feedback_conv_time / prof_feedback_conv_calls);
+    }
+
+    if (prof_feedforw_full_calls > 0) {
+        fprintf(stderr,
+                "Layer_feedForw_full : %ld calls, %.6f s total, %.9f s / call\n",
+                prof_feedforw_full_calls,
+                prof_feedforw_full_time,
+                prof_feedforw_full_time / prof_feedforw_full_calls);
+    }
+
+    if (prof_feedback_full_calls > 0) {
+        fprintf(stderr,
+                "Layer_feedBack_full : %ld calls, %.6f s total, %.9f s / call\n",
+                prof_feedback_full_calls,
+                prof_feedback_full_time,
+                prof_feedback_full_time / prof_feedback_full_calls);
+    }
+
+    fprintf(stderr, "===================================\n");
 }
